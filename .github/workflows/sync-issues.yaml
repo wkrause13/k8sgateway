@@ -39,8 +39,17 @@ jobs:
         upstream_repo_name = "k8sgateway/k8sgateway"
         fork_repo_name = "wkrause13/k8sgateway/"
 
-        upstream_repo = g.get_repo(upstream_repo_name)
-        fork_repo = g.get_repo(fork_repo_name)
+        try:
+            upstream_repo = g.get_repo(upstream_repo_name)
+            print(f"Upstream repo found: {upstream_repo.full_name}")
+        except Exception as e:
+            print(f"Error accessing upstream repo: {e}")
+
+        try:
+            fork_repo = g.get_repo(fork_repo_name)
+            print(f"Fork repo found: {fork_repo.full_name}")
+        except Exception as e:
+            print(f"Error accessing fork repo: {e}")
 
         # Fetch all open issues from upstream
         upstream_issues = upstream_repo.get_issues(state="open")

@@ -27,6 +27,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.PAT }}
       run: |
+        python <<EOF
         import os
         from github import Github
 
@@ -82,3 +83,4 @@ jobs:
                     labels=[label.name for label in upstream_issue.labels]
                 )
                 print(f"Issue '{new_issue.title}' created in fork.")
+        EOF

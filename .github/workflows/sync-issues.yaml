@@ -37,7 +37,8 @@ jobs:
 
         # Replace with your repository names
         upstream_repo_name = "k8sgateway/k8sgateway"
-        fork_repo_name = "wkrause13/k8sgateway/"
+        fork_repo_name = "wkrause13/k8sgateway"
+        fork_repo = 
 
         try:
             upstream_repo = g.get_repo(upstream_repo_name)

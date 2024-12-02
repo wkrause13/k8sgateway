@@ -1,0 +1,84 @@
+name: Sync Upstream Issues
+
+on:
+  schedule:
+    - cron: '0 * * * *'  # Runs hourly
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  sync-issues:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install PyGithub
+
+    - name: Sync Issues
+      env:
+        GITHUB_TOKEN: ${{ secrets.PAT }}
+      run: |
+        import os
+        from github import Github
+
+        # Initialize GitHub client
+        token = os.getenv("GITHUB_TOKEN")
+        g = Github(token)
+
+        # Replace with your repository names
+        upstream_repo_name = "k8sgateway/k8sgateway"
+        fork_repo_name = "wkrause13/k8sgateway/"
+
+        upstream_repo = g.get_repo(upstream_repo_name)
+        fork_repo = g.get_repo(fork_repo_name)
+
+        # Fetch all open issues from upstream
+        upstream_issues = upstream_repo.get_issues(state="open")
+
+        for upstream_issue in upstream_issues:
+            # Find corresponding issue in fork (assumes title mapping)
+            fork_issues = fork_repo.get_issues(state="open")
+            matching_issue = None
+
+            for fork_issue in fork_issues:
+                if f"Upstream Issue #{upstream_issue.number}" in fork_issue.body:
+                    matching_issue = fork_issue
+                    break
+
+            # If matching issue exists, sync comments and updates
+            if matching_issue:
+                # Sync title and body
+                if matching_issue.title != upstream_issue.title:
+                    matching_issue.edit(title=upstream_issue.title)
+                if matching_issue.body != upstream_issue.body:
+                    matching_issue.edit(body=upstream_issue.body)
+
+                # Sync comments
+                upstream_comments = upstream_issue.get_comments()
+                fork_comments = matching_issue.get_comments()
+
+                upstream_comment_bodies = [comment.body for comment in upstream_comments]
+                fork_comment_bodies = [comment.body for comment in fork_comments]
+
+                for upstream_comment in upstream_comments:
+                    if upstream_comment.body not in fork_comment_bodies:
+                        matching_issue.create_comment(upstream_comment.body)
+                        print(f"Comment synced: {upstream_comment.body}")
+
+            # If no matching issue exists, create a new one
+            else:
+                new_issue = fork_repo.create_issue(
+                    title=upstream_issue.title,
+                    body=f"{upstream_issue.body}\n\n_Cloned from Upstream Issue #{upstream_issue.number}_",
+                    labels=[label.name for label in upstream_issue.labels]
+                )
+                print(f"Issue '{new_issue.title}' created in fork.")

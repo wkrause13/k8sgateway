@@ -1,0 +1,63 @@
+# Example: GatewayParameters-driven HPA overlay.
+#
+# This creates:
+#   1. A GatewayParameters with horizontalPodAutoscaler overlay
+#   2. A Gateway referencing those parameters
+#   3. A generated HPA (created by the deployer)
+#
+# The HPA is generated with scaleTargetRef automatically set to the proxy Deployment.
+---
+apiVersion: gateway.gloo.solo.io/v1alpha1
+kind: GatewayParameters
+metadata:
+  name: hpa-overlay-gwp
+  namespace: gloo-system
+spec:
+  kube:
+    deployment:
+      replicas: 1
+    horizontalPodAutoscaler:
+      metadata:
+        labels:
+          demo.hpa/source: manifest
+        annotations:
+          demo.hpa/managed: "true"
+      spec:
+        minReplicas: 2
+        maxReplicas: 5
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 80
+    envoyContainer:
+      image:
+        registry: quay.io/solo-io
+        repository: gloo-envoy-wrapper
+        tag: 1.0.0-hpa-dev
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    service:
+      type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: hpa-overlay-gateway
+  namespace: gloo-system
+  annotations:
+    gateway.gloo.solo.io/gateway-parameters-name: hpa-overlay-gwp
+spec:
+  gatewayClassName: gloo-gateway
+  listeners:
+  - name: http
+    port: 8080
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: Same

@@ -12,6 +12,7 @@ import (
 	"github.com/rotisserie/eris"
 	"github.com/solo-io/gloo/pkg/version"
 	"github.com/solo-io/gloo/projects/gateway2/api/v1alpha1"
+	"github.com/solo-io/gloo/projects/gateway2/deployer/strategicpatch"
 	"github.com/solo-io/gloo/projects/gateway2/helm"
 	"github.com/solo-io/gloo/projects/gateway2/query"
 	"github.com/solo-io/gloo/projects/gateway2/wellknown"
@@ -67,6 +68,13 @@ type AwsInfo struct {
 	EnableServiceAccountCredentials bool
 	StsClusterName                  string
 	StsUri                          string
+}
+
+// resolvedGatewayParameters holds GatewayClass and Gateway GatewayParameters
+// separately so overlays can be applied in order.
+type resolvedGatewayParameters struct {
+	gatewayClassGWP *v1alpha1.GatewayParameters
+	gatewayGWP      *v1alpha1.GatewayParameters
 }
 
 // Inputs is the set of options used to configure the gateway deployer deployment
@@ -159,6 +167,16 @@ func (d *Deployer) GetGvksToWatch(ctx context.Context) ([]schema.GroupVersionKin
 		}
 	}
 
+	// Overlays can create these additional resources at runtime.
+	for _, gvk := range []schema.GroupVersionKind{
+		wellknown.PodDisruptionBudgetGVK,
+		wellknown.HorizontalPodAutoscalerGVK,
+	} {
+		if !slices.Contains(ret, gvk) {
+			ret = append(ret, gvk)
+		}
+	}
+
 	log.FromContext(ctx).V(1).Info("watching GVKs", "GVKs", ret)
 	return ret, nil
 }
@@ -215,6 +233,40 @@ func (d *Deployer) getGatewayParametersForGateway(ctx context.Context, gw *api.G
 	mergedGwp := defaultGwp
 	deepMergeGatewayParameters(mergedGwp, gwp)
 	return mergedGwp, nil
+}
+
+// resolveGatewayParametersForOverlays returns GatewayClass and Gateway-level
+// GatewayParameters separately to allow ordered overlay application.
+func (d *Deployer) resolveGatewayParametersForOverlays(ctx context.Context, gw *api.Gateway) (*resolvedGatewayParameters, error) {
+	resolved := &resolvedGatewayParameters{}
+
+	gwc, err := d.getGatewayClassFromGateway(ctx, gw)
+	if err != nil {
+		return nil, err
+	}
+
+	// if this fails, this would also fail value generation for the same reason
+	gwcGwp, err := d.getGatewayParametersForGatewayClass(ctx, gwc)
+	if err != nil {
+		return nil, err
+	}
+	resolved.gatewayClassGWP = gwcGwp
+
+	// check for a gateway params annotation on the Gateway
+	gwpName := gw.GetAnnotations()[wellknown.GatewayParametersAnnotationName]
+	if gwpName == "" {
+		return resolved, nil
+	}
+
+	gwpNamespace := gw.GetNamespace()
+	gwp := &v1alpha1.GatewayParameters{}
+	err = d.cli.Get(ctx, client.ObjectKey{Namespace: gwpNamespace, Name: gwpName}, gwp)
+	if err != nil {
+		return nil, getGatewayParametersError(err, gwpNamespace, gwpName, gw.GetNamespace(), gw.GetName(), "Gateway")
+	}
+	resolved.gatewayGWP = gwp
+
+	return resolved, nil
 }
 
 // gets the default GatewayParameters associated with the GatewayClass of the provided Gateway
@@ -516,6 +568,26 @@ func (d *Deployer) GetObjsToDeploy(ctx context.Context, gw *api.Gateway) ([]clie
 	objs, err := d.renderChartToObjects(gw, convertedVals)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get objects to deploy for gateway %s.%s: %w", gw.GetNamespace(), gw.GetName(), err)
+	}
+
+	// Apply overlays in order: GatewayClass first, then Gateway.
+	resolvedParams, err := d.resolveGatewayParametersForOverlays(ctx, gw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve gateway parameters overlays for gateway %s.%s: %w", gw.GetNamespace(), gw.GetName(), err)
+	}
+	if resolvedParams.gatewayClassGWP != nil {
+		applier := strategicpatch.NewOverlayApplierFromGatewayParameters(resolvedParams.gatewayClassGWP)
+		objs, err = applier.ApplyOverlays(objs)
+		if err != nil {
+			return nil, fmt.Errorf("failed applying GatewayClass overlays for gateway %s.%s: %w", gw.GetNamespace(), gw.GetName(), err)
+		}
+	}
+	if resolvedParams.gatewayGWP != nil {
+		applier := strategicpatch.NewOverlayApplierFromGatewayParameters(resolvedParams.gatewayGWP)
+		objs, err = applier.ApplyOverlays(objs)
+		if err != nil {
+			return nil, fmt.Errorf("failed applying Gateway overlays for gateway %s.%s: %w", gw.GetNamespace(), gw.GetName(), err)
+		}
 	}
 
 	// Set owner ref

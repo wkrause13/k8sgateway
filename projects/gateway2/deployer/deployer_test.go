@@ -25,9 +25,13 @@ import (
 	"github.com/solo-io/solo-kit/pkg/utils/protoutils"
 	"go.uber.org/mock/gomock"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/yaml"
@@ -121,6 +125,39 @@ func (objs *clientObjects) findSecret(namespace, name string) *corev1.Secret {
 		if secret, ok := obj.(*corev1.Secret); ok {
 			if secret.Name == name && secret.Namespace == namespace {
 				return secret
+			}
+		}
+	}
+	return nil
+}
+
+func (objs *clientObjects) findPodDisruptionBudget(namespace, name string) *policyv1.PodDisruptionBudget {
+	for _, obj := range *objs {
+		if pdb, ok := obj.(*policyv1.PodDisruptionBudget); ok {
+			if pdb.Name == name && pdb.Namespace == namespace {
+				return pdb
+			}
+		}
+	}
+	return nil
+}
+
+func (objs *clientObjects) findHorizontalPodAutoscaler(namespace, name string) *autoscalingv2.HorizontalPodAutoscaler {
+	for _, obj := range *objs {
+		if hpa, ok := obj.(*autoscalingv2.HorizontalPodAutoscaler); ok {
+			if hpa.Name == name && hpa.Namespace == namespace {
+				return hpa
+			}
+		}
+	}
+	return nil
+}
+
+func (objs *clientObjects) findVerticalPodAutoscaler(namespace, name string) *unstructured.Unstructured {
+	for _, obj := range *objs {
+		if vpa, ok := obj.(*unstructured.Unstructured); ok {
+			if vpa.GetKind() == "VerticalPodAutoscaler" && vpa.GetName() == name && vpa.GetNamespace() == namespace {
+				return vpa
 			}
 		}
 	}
@@ -491,6 +528,8 @@ var _ = Describe("Deployer", func() {
 					wellknownkube.ServiceAccountGVK,
 					wellknownkube.ConfigMapGVK,
 					wellknownkube.SecretGVK,
+					policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget"),
+					autoscalingv2.SchemeGroupVersion.WithKind("HorizontalPodAutoscaler"),
 				}),
 			Entry("glooMtls disabled",
 				&deployer.Inputs{
@@ -505,6 +544,8 @@ var _ = Describe("Deployer", func() {
 					wellknownkube.ServiceGVK,
 					wellknownkube.ServiceAccountGVK,
 					wellknownkube.ConfigMapGVK,
+					policyv1.SchemeGroupVersion.WithKind("PodDisruptionBudget"),
+					autoscalingv2.SchemeGroupVersion.WithKind("HorizontalPodAutoscaler"),
 				},
 			))
 
@@ -1617,6 +1658,179 @@ var _ = Describe("Deployer", func() {
 				validationFunc: validateGatewayParamsWithTopologySpreadConstraints,
 			}),
 		)
+	})
+
+	Context("gateway parameter overlays", func() {
+		It("applies GatewayClass overlays then Gateway overlays and creates PDB/HPA/VPA", func() {
+			const overrideGwpName = "gateway-params-overlay-override"
+
+			gw := defaultGateway()
+			gw.Annotations = map[string]string{
+				wellknown.GatewayParametersAnnotationName: overrideGwpName,
+			}
+
+			defaultGwp := defaultGatewayParams()
+			defaultGwp.Spec.Kube.GatewayParametersOverlays = gw2_v1alpha1.GatewayParametersOverlays{
+				DeploymentOverlay: &gw2_v1alpha1.KubernetesResourceOverlay{
+					Metadata: &gw2_v1alpha1.ObjectMetadata{
+						Annotations: map[string]string{
+							"shared-annotation": "from-gatewayclass",
+							"gwc-only":          "present",
+						},
+					},
+					Spec: &apiextensionsv1.JSON{
+						Raw: []byte(`{
+							"template": {
+								"spec": {
+									"terminationGracePeriodSeconds": 29
+								}
+							}
+						}`),
+					},
+				},
+				PodDisruptionBudget: &gw2_v1alpha1.KubernetesResourceOverlay{
+					Metadata: &gw2_v1alpha1.ObjectMetadata{
+						Labels: map[string]string{
+							"pdb-source": "gatewayclass",
+						},
+					},
+					Spec: &apiextensionsv1.JSON{
+						Raw: []byte(`{"minAvailable": 1}`),
+					},
+				},
+			}
+
+			overrideGwp := &gw2_v1alpha1.GatewayParameters{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       gw2_v1alpha1.GatewayParametersKind,
+					APIVersion: gw2_v1alpha1.GroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      overrideGwpName,
+					Namespace: defaultNamespace,
+				},
+				Spec: gw2_v1alpha1.GatewayParametersSpec{
+					Kube: &gw2_v1alpha1.KubernetesProxyConfig{
+						GatewayParametersOverlays: gw2_v1alpha1.GatewayParametersOverlays{
+							DeploymentOverlay: &gw2_v1alpha1.KubernetesResourceOverlay{
+								Metadata: &gw2_v1alpha1.ObjectMetadata{
+									Annotations: map[string]string{
+										"shared-annotation": "from-gateway",
+										"gw-only":           "present",
+									},
+								},
+								Spec: &apiextensionsv1.JSON{
+									Raw: []byte(`{
+										"template": {
+											"spec": {
+												"terminationGracePeriodSeconds": 59
+											}
+										}
+									}`),
+								},
+							},
+							HorizontalPodAutoscaler: &gw2_v1alpha1.KubernetesResourceOverlay{
+								Metadata: &gw2_v1alpha1.ObjectMetadata{
+									Labels: map[string]string{
+										"hpa-source": "gateway",
+									},
+								},
+								Spec: &apiextensionsv1.JSON{
+									Raw: []byte(`{
+										"minReplicas": 2,
+										"maxReplicas": 10,
+										"metrics": [{
+											"type": "Resource",
+											"resource": {
+												"name": "cpu",
+												"target": {
+													"type": "Utilization",
+													"averageUtilization": 80
+												}
+											}
+										}]
+									}`),
+								},
+							},
+							VerticalPodAutoscaler: &gw2_v1alpha1.KubernetesResourceOverlay{
+								Metadata: &gw2_v1alpha1.ObjectMetadata{
+									Labels: map[string]string{
+										"vpa-source": "gateway",
+									},
+								},
+								Spec: &apiextensionsv1.JSON{
+									Raw: []byte(`{
+										"updatePolicy": {
+											"updateMode": "Auto"
+										}
+									}`),
+								},
+							},
+						},
+					},
+				},
+			}
+
+			d, err := deployer.NewDeployer(
+				newFakeClientWithObjs(defaultGatewayClass(), defaultGwp, overrideGwp),
+				&deployer.Inputs{
+					ControllerName: wellknown.GatewayControllerName,
+					Dev:            false,
+					ControlPlane: deployer.ControlPlaneInfo{
+						XdsHost: "something.cluster.local",
+						XdsPort: 1234,
+					},
+				},
+				queries,
+			)
+			Expect(err).NotTo(HaveOccurred())
+
+			objs, err := d.GetObjsToDeploy(context.Background(), gw)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(objs).To(HaveLen(7))
+
+			clientObjs := clientObjects(objs)
+			proxyResourceName := proxyName(gw.Name)
+
+			dep := clientObjs.findDeployment(defaultNamespace, proxyResourceName)
+			Expect(dep).ToNot(BeNil())
+			Expect(dep.Annotations).To(HaveKeyWithValue("shared-annotation", "from-gateway"))
+			Expect(dep.Annotations).To(HaveKeyWithValue("gwc-only", "present"))
+			Expect(dep.Annotations).To(HaveKeyWithValue("gw-only", "present"))
+			Expect(dep.Spec.Template.Spec.TerminationGracePeriodSeconds).ToNot(BeNil())
+			Expect(*dep.Spec.Template.Spec.TerminationGracePeriodSeconds).To(Equal(int64(59)))
+
+			pdb := clientObjs.findPodDisruptionBudget(defaultNamespace, proxyResourceName)
+			Expect(pdb).ToNot(BeNil())
+			Expect(pdb.Labels).To(HaveKeyWithValue("pdb-source", "gatewayclass"))
+			Expect(pdb.Spec.MinAvailable).ToNot(BeNil())
+			Expect(pdb.Spec.MinAvailable.IntVal).To(Equal(int32(1)))
+
+			hpa := clientObjs.findHorizontalPodAutoscaler(defaultNamespace, proxyResourceName)
+			Expect(hpa).ToNot(BeNil())
+			Expect(hpa.Labels).To(HaveKeyWithValue("hpa-source", "gateway"))
+			Expect(ptr.Deref(hpa.Spec.MinReplicas, 0)).To(Equal(int32(2)))
+			Expect(hpa.Spec.MaxReplicas).To(Equal(int32(10)))
+			Expect(hpa.Spec.ScaleTargetRef.Name).To(Equal(proxyResourceName))
+
+			vpa := clientObjs.findVerticalPodAutoscaler(defaultNamespace, proxyResourceName)
+			Expect(vpa).ToNot(BeNil())
+			Expect(vpa.GetLabels()).To(HaveKeyWithValue("vpa-source", "gateway"))
+			targetRefName, found, err := unstructured.NestedString(vpa.Object, "spec", "targetRef", "name")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+			Expect(targetRefName).To(Equal(proxyResourceName))
+			updateMode, found, err := unstructured.NestedString(vpa.Object, "spec", "updatePolicy", "updateMode")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(found).To(BeTrue())
+			Expect(updateMode).To(Equal("Auto"))
+
+			for _, obj := range []client.Object{pdb, hpa, vpa} {
+				Expect(obj.GetOwnerReferences()).To(HaveLen(1))
+				Expect(obj.GetOwnerReferences()[0].Name).To(Equal(gw.Name))
+				Expect(obj.GetOwnerReferences()[0].UID).To(Equal(gw.UID))
+			}
+		})
 	})
 
 	Context("with listener sets", func() {

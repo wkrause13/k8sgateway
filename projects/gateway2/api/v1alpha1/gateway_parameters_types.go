@@ -118,6 +118,8 @@ type KubernetesProxyConfig struct {
 
 	// Used to unset the `runAsUser` values in security contexts.
 	FloatingUserId *bool `json:"floatingUserId,omitempty"`
+
+	GatewayParametersOverlays `json:",inline"`
 }
 
 func (in *KubernetesProxyConfig) GetDeployment() *ProxyDeployment {
@@ -793,6 +795,32 @@ type AIExtensionTracingGrpc struct {
 	// The port for the OTLP collector.
 	// +kubebuilder:validation:Minimum=1
 	Port uint32 `json:"port"`
+}
+
+type GatewayParametersOverlays struct {
+	// deploymentOverlay allows specifying overrides for the generated Deployment resource.
+	// +optional
+	DeploymentOverlay *KubernetesResourceOverlay `json:"deploymentOverlay,omitempty"`
+
+	// serviceOverlay allows specifying overrides for the generated Service resource.
+	// +optional
+	ServiceOverlay *KubernetesResourceOverlay `json:"serviceOverlay,omitempty"`
+
+	// serviceAccountOverlay allows specifying overrides for the generated ServiceAccount resource.
+	// +optional
+	ServiceAccountOverlay *KubernetesResourceOverlay `json:"serviceAccountOverlay,omitempty"`
+
+	// podDisruptionBudget allows creating a PodDisruptionBudget for the proxy.
+	// +optional
+	PodDisruptionBudget *KubernetesResourceOverlay `json:"podDisruptionBudget,omitempty"`
+
+	// horizontalPodAutoscaler allows creating a HorizontalPodAutoscaler for the proxy.
+	// +optional
+	HorizontalPodAutoscaler *KubernetesResourceOverlay `json:"horizontalPodAutoscaler,omitempty"`
+
+	// verticalPodAutoscaler allows creating a VerticalPodAutoscaler for the proxy.
+	// +optional
+	VerticalPodAutoscaler *KubernetesResourceOverlay `json:"verticalPodAutoscaler,omitempty"`
 }
 
 func (in *AIExtensionTracingGrpc) GetHost() string {

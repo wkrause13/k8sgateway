@@ -309,6 +309,23 @@ spec:
                         format: int32
                         type: integer
                     type: object
+                  deploymentOverlay:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
                   envoyContainer:
                     properties:
                       bootstrap:
@@ -441,6 +458,23 @@ spec:
                     type: object
                   floatingUserId:
                     type: boolean
+                  horizontalPodAutoscaler:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
                   istio:
                     properties:
                       customSidecars:
@@ -1294,6 +1328,23 @@ spec:
                                 type: object
                             type: object
                         type: object
+                    type: object
+                  podDisruptionBudget:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                     type: object
                   podTemplate:
                     properties:
@@ -2244,6 +2295,40 @@ spec:
                           type: string
                         type: object
                     type: object
+                  serviceAccountOverlay:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
+                  serviceOverlay:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+                    type: object
                   stats:
                     properties:
                       enableStatsRoute:
@@ -2254,6 +2339,23 @@ spec:
                         type: string
                       statsRoutePrefixRewrite:
                         type: string
+                    type: object
+                  verticalPodAutoscaler:
+                    properties:
+                      metadata:
+                        properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
+                        type: object
+                      spec:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
                     type: object
                 type: object
               selfManaged:

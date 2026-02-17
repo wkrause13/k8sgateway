@@ -1667,6 +1667,32 @@ var _ = Describe("Deployer", func() {
 					return nil
 				},
 			}),
+			Entry("have replicas explicitly set to zero", &input{
+				dInputs: defaultDeployerInputs(),
+				gw:      defaultGatewayWithGatewayParams(gwpOverrideName),
+				defaultGwp: defaultGatewayParams(),
+				overrideGwp: &gw2_v1alpha1.GatewayParameters{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      gwpOverrideName,
+						Namespace: defaultNamespace,
+					},
+					Spec: gw2_v1alpha1.GatewayParametersSpec{
+						Kube: &gw2_v1alpha1.KubernetesProxyConfig{
+							Deployment: &gw2_v1alpha1.ProxyDeployment{
+								Replicas: ptr.To(uint32(0)),
+							},
+						},
+					},
+				},
+			}, &expectedOutput{
+				validationFunc: func(objs clientObjects, inp *input) error {
+					dep := objs.findDeployment(defaultNamespace, defaultDeploymentName)
+					Expect(dep).ToNot(BeNil())
+					Expect(dep.Spec.Replicas).ToNot(BeNil())
+					Expect(*dep.Spec.Replicas).To(Equal(int32(0)))
+					return nil
+				},
+			}),
 			Entry("replicas and omitReplicas aren't set (default from GatewayParams)", &input{
 				dInputs:    defaultDeployerInputs(),
 				gw:         defaultGateway(),

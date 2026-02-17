@@ -704,7 +704,15 @@ func deepMergeDeployment(dst, src *v1alpha1.ProxyDeployment) *v1alpha1.ProxyDepl
 		return src
 	}
 
-	dst.Replicas = mergePointers(dst.GetReplicas(), src.GetReplicas())
+	// Replicas and OmitReplicas are mutually exclusive (AtMostOneOf).
+	// If src sets either one, use it and clear the other.
+	if src.GetReplicas() != nil {
+		dst.Replicas = src.GetReplicas()
+		dst.OmitReplicas = nil
+	} else if src.GetOmitReplicas() != nil {
+		dst.OmitReplicas = src.GetOmitReplicas()
+		dst.Replicas = nil
+	}
 
 	return dst
 }

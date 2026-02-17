@@ -191,11 +191,20 @@ func (in *KubernetesProxyConfig) GetFloatingUserId() *bool {
 }
 
 // Configuration for the Proxy deployment in Kubernetes.
+//
+// +kubebuilder:validation:XValidation:message="only one of 'replicas' or 'omitReplicas' may be set",rule="!(has(self.replicas) && has(self.omitReplicas))"
 type ProxyDeployment struct {
 	// The number of desired pods. Defaults to 1.
 	//
 	// +kubebuilder:validation:Optional
 	Replicas *uint32 `json:"replicas,omitempty"`
+
+	// If true, the deployer will not set the replica count on the
+	// proxy deployment, allowing HPA or other controllers to manage
+	// the replica count. This field is mutually exclusive with Replicas.
+	//
+	// +kubebuilder:validation:Optional
+	OmitReplicas *bool `json:"omitReplicas,omitempty"`
 }
 
 func (in *ProxyDeployment) GetReplicas() *uint32 {
@@ -203,6 +212,13 @@ func (in *ProxyDeployment) GetReplicas() *uint32 {
 		return nil
 	}
 	return in.Replicas
+}
+
+func (in *ProxyDeployment) GetOmitReplicas() *bool {
+	if in == nil {
+		return nil
+	}
+	return in.OmitReplicas
 }
 
 // Configuration for the container running Envoy.

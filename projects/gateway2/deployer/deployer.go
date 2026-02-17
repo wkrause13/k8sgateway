@@ -330,17 +330,11 @@ func (d *Deployer) getValues(ctx context.Context, gw *api.Gateway, gwParam *v1al
 	gateway := vals.Gateway
 
 	// deployment values
-	gateway.ReplicaCount = deployConfig.GetReplicas()
-
-	// TODO: The follow stanza has been commented out as autoscaling support has been removed.
-	// see https://github.com/solo-io/solo-projects/issues/5948 for more info.
-	//
-	// autoscalingVals := getAutoscalingValues(kubeProxyConfig.GetAutoscaling())
-	// vals.Gateway.Autoscaling = autoscalingVals
-	// if autoscalingVals == nil && deployConfig.GetReplicas() != nil {
-	// 	replicas := deployConfig.GetReplicas().GetValue()
-	// 	vals.Gateway.ReplicaCount = &replicas
-	// }
+	if deployConfig.GetOmitReplicas() != nil && *deployConfig.GetOmitReplicas() {
+		gateway.ReplicaCount = nil
+	} else {
+		gateway.ReplicaCount = deployConfig.GetReplicas()
+	}
 
 	// service values
 	gateway.Service = getServiceValues(svcConfig)

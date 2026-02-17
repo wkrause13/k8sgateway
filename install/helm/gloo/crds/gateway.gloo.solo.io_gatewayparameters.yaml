@@ -305,10 +305,15 @@ spec:
                     type: object
                   deployment:
                     properties:
+                      omitReplicas:
+                        type: boolean
                       replicas:
                         format: int32
                         type: integer
                     type: object
+                    x-kubernetes-validations:
+                    - message: only one of 'replicas' or 'omitReplicas' may be set
+                      rule: '!(has(self.replicas) && has(self.omitReplicas))'
                   envoyContainer:
                     properties:
                       bootstrap:

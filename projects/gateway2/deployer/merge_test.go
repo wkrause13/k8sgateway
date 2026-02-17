@@ -136,6 +136,30 @@ var _ = Describe("deepMergeGatewayParameters", func() {
 		Expect(out.Spec.Kube.ServiceAccount.ExtraAnnotations).To(Equal(expectedMap))
 	})
 
+	It("should override kube deployment omitReplicas", func() {
+		dst := &gw2_v1alpha1.GatewayParameters{
+			Spec: gw2_v1alpha1.GatewayParametersSpec{
+				Kube: &gw2_v1alpha1.KubernetesProxyConfig{
+					Deployment: &gw2_v1alpha1.ProxyDeployment{
+						Replicas: ptr.To[uint32](2),
+					},
+				},
+			},
+		}
+		src := &gw2_v1alpha1.GatewayParameters{
+			Spec: gw2_v1alpha1.GatewayParametersSpec{
+				Kube: &gw2_v1alpha1.KubernetesProxyConfig{
+					Deployment: &gw2_v1alpha1.ProxyDeployment{
+						OmitReplicas: ptr.To(true),
+					},
+				},
+			},
+		}
+		out := deepMergeGatewayParameters(dst, src)
+		Expect(out.Spec.Kube.Deployment.OmitReplicas).To(Equal(ptr.To(true)))
+		Expect(out.Spec.Kube.Deployment.Replicas).To(BeNil())
+	})
+
 	It("merges service strings", func() {
 
 		dst := &gw2_v1alpha1.GatewayParameters{

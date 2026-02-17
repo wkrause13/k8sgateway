@@ -16,13 +16,20 @@ spec:
 {{- end }}{{/* if .Values.kubeGateway.gatewayParameters.glooGateway */}}
 {{- end }}{{/* if .Values.kubeGateway.gatewayParameters */}}
 {{- $replicas := 1 -}}
+{{- $omitReplicas := false -}}
 {{- if $gg.proxyDeployment -}}
-{{- if $gg.proxyDeployment.replicas -}}
+{{- if $gg.proxyDeployment.omitReplicas -}}
+{{- $omitReplicas = true -}}
+{{- else if $gg.proxyDeployment.replicas -}}
 {{- $replicas = $gg.proxyDeployment.replicas -}}
-{{- end -}}{{/* if $gg.proxyDeployment.replicas */}}
+{{- end -}}{{/* if $gg.proxyDeployment.omitReplicas / replicas */}}
 {{- end }}{{/* if $gg.proxyDeployment */}}
     deployment:
+{{- if $omitReplicas }}
+      omitReplicas: true
+{{- else }}
       replicas: {{ $replicas }}
+{{- end }}
 {{- $serviceType := "LoadBalancer" -}}
 {{- if $gg.service -}}
 {{- if $gg.service.type -}}

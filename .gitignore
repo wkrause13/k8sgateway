@@ -64,3 +64,6 @@ istio-*/*
 
 # Bin directory created by e2e test
 .bin/
+
+# Git worktrees
+.worktrees/

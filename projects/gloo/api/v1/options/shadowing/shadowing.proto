@@ -21,4 +21,9 @@ message RouteShadowing {
 
     // This should be a value between 0.0 and 100.0, with up to 6 significant digits.
     float percentage = 2;
+
+    // If true, the host/authority header will not have "-shadow" appended when
+    // shadowing traffic. Defaults to false (the suffix is appended).
+    // See: https://www.envoyproxy.io/docs/envoy/latest/api-v3/config/route/v3/route_components.proto
+    bool disable_shadow_host_suffix_append = 3;
 }

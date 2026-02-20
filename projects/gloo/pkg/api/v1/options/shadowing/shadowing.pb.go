@@ -97,13 +97,13 @@ var File_github_com_solo_io_gloo_projects_gloo_api_v1_options_shadowing_shadowin
 
 const file_github_com_solo_io_gloo_projects_gloo_api_v1_options_shadowing_shadowing_proto_rawDesc = "" +
 	"\n" +
-	"Ngithub.com/solo-io/gloo/projects/gloo/api/v1/options/shadowing/shadowing.proto\x12\x1eshadowing.options.gloo.solo.io\x1a,github.com/solo-io/solo-kit/api/v1/ref.proto\x1a\x12extproto/ext.proto\"\xb6\x01\n" +
+	"Ngithub.com/solo-io/gloo/projects/gloo/api/v1/options/shadowing/shadowing.proto\x12\x1eshadowing.options.gloo.solo.io\x1a,github.com/solo-io/solo-kit/api/v1/ref.proto\x1a\x12extproto/ext.proto\"\xb1\x01\n" +
 	"\x0eRouteShadowing\x125\n" +
-	"\bupstream\x18\x01 \x01(\v2\x19.core.solo.io.ResourceRefR\bupstream\x12\x1e\n" +
+	"\bupstream\x18\x01 \x01(\x0b2\x19.core.solo.io.ResourceRefR\bupstream\x12\x1e\n" +
 	"\n" +
 	"percentage\x18\x02 \x01(\x02R\n" +
-	"percentage\x12M\n" +
-	"!disable_shadow_host_suffix_append\x18\x03 \x01(\bR\x1ddisableShadowHostSuffixAppendBP\xb8\xf5\x04\x01\xc0\xf5\x04\x01\xd0\xf5\x04\x01ZBgithub.com/solo-io/gloo/projects/gloo/pkg/api/v1/options/shadowingb\x06proto3"
+	"percentage\x12H\n" +
+	"!disable_shadow_host_suffix_append\x18\x03 \x01(\bR\x1ddisableShadowHostSuffixAppendBPZBgithub.com/solo-io/gloo/projects/gloo/pkg/api/v1/options/shadowing\xb8\xf5\x04\x01\xc0\xf5\x04\x01\xd0\xf5\x04\x01b\x06proto3"
 
 var (
 	file_github_com_solo_io_gloo_projects_gloo_api_v1_options_shadowing_shadowing_proto_rawDescOnce sync.Once

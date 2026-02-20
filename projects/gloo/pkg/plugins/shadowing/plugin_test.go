@@ -36,6 +36,51 @@ var _ = Describe("Plugin", func() {
 		Expect(out.GetRoute().GetRequestMirrorPolicies()[0].GetCluster()).To(Equal("some-upstream_default"))
 	})
 
+	It("should pass through disable_shadow_host_suffix_append when set to true", func() {
+		p := NewPlugin()
+
+		upRef := &core.ResourceRef{
+			Name:      "some-upstream",
+			Namespace: "default",
+		}
+		in := &v1.Route{
+			Options: &v1.RouteOptions{
+				Shadowing: &shadowing.RouteShadowing{
+					Upstream:                      upRef,
+					Percentage:                    100,
+					DisableShadowHostSuffixAppend: true,
+				},
+			},
+		}
+		out := &envoy_config_route_v3.Route{}
+		err := p.ProcessRoute(plugins.RouteParams{}, in, out)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out.GetRoute().GetRequestMirrorPolicies()[0].GetDisableShadowHostSuffixAppend()).To(BeTrue())
+		Expect(out.GetRoute().GetRequestMirrorPolicies()[0].GetCluster()).To(Equal("some-upstream_default"))
+		checkFraction(out.GetRoute().GetRequestMirrorPolicies()[0].GetRuntimeFraction(), 100)
+	})
+
+	It("should default disable_shadow_host_suffix_append to false when not set", func() {
+		p := NewPlugin()
+
+		upRef := &core.ResourceRef{
+			Name:      "some-upstream",
+			Namespace: "default",
+		}
+		in := &v1.Route{
+			Options: &v1.RouteOptions{
+				Shadowing: &shadowing.RouteShadowing{
+					Upstream:   upRef,
+					Percentage: 100,
+				},
+			},
+		}
+		out := &envoy_config_route_v3.Route{}
+		err := p.ProcessRoute(plugins.RouteParams{}, in, out)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(out.GetRoute().GetRequestMirrorPolicies()[0].GetDisableShadowHostSuffixAppend()).To(BeFalse())
+	})
+
 	It("should work on valid inputs, with initialized outputs", func() {
 		p := NewPlugin()
 

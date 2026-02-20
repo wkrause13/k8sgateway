@@ -31,6 +31,7 @@ import (
 	"github.com/solo-io/gloo/projects/gateway2/wellknown"
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/grpc/validation"
 	gloov1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
+	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/options/shadowing"
 	glooutils "github.com/solo-io/gloo/projects/gloo/pkg/utils"
 )
 
@@ -157,7 +158,31 @@ func mergeOptionsForRoute(
 		}
 	}
 
-	return glooutils.MergeRouteOptionsWithOverrides(dst, src, fieldsAllowedToOverride)
+	// Save mirror-plugin-generated shadowing before merge (src is lower priority existing options)
+	srcShadowing := src.GetShadowing()
+
+	merged, result := glooutils.MergeRouteOptionsWithOverrides(dst, src, fieldsAllowedToOverride)
+
+	// Deep merge shadowing: when dst (RouteOption) provides partial shadowing config
+	// (e.g. only DisableShadowHostSuffixAppend) but src (mirror plugin) provides
+	// upstream and percentage, preserve both sides.
+	mergeShadowing(merged, srcShadowing)
+
+	return merged, result
+}
+
+// mergeShadowing performs a targeted deep merge of the Shadowing field.
+// When merged.Shadowing is set but missing upstream/percentage (e.g. from a RouteOption
+// that only configures DisableShadowHostSuffixAppend), and srcShadowing has those fields
+// (e.g. from the mirror plugin), copy them into the merged result.
+func mergeShadowing(merged *gloov1.RouteOptions, srcShadowing *shadowing.RouteShadowing) {
+	if merged.GetShadowing() == nil || srcShadowing == nil {
+		return
+	}
+	if merged.GetShadowing().GetUpstream() == nil && srcShadowing.GetUpstream() != nil {
+		merged.GetShadowing().Upstream = srcShadowing.GetUpstream()
+		merged.GetShadowing().Percentage = srcShadowing.GetPercentage()
+	}
 }
 
 func (p *plugin) InitStatusPlugin(ctx context.Context, statusCtx *plugins.StatusContext) error {

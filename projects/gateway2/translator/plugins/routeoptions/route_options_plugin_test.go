@@ -28,6 +28,7 @@ import (
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/grpc/validation"
 	v1 "github.com/solo-io/gloo/projects/gloo/pkg/api/v1"
 	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/options/faultinjection"
+	"github.com/solo-io/gloo/projects/gloo/pkg/api/v1/options/shadowing"
 	"github.com/solo-io/gloo/projects/gloo/pkg/defaults"
 	glooutils "github.com/solo-io/gloo/projects/gloo/pkg/utils"
 	corev1 "github.com/solo-io/skv2/pkg/api/core.skv2.solo.io/v1"
@@ -1031,6 +1032,73 @@ var _ = DescribeTable("mergeOptionsForRoute",
 			Timeout:       durationpb.New(10 * time.Second),
 		},
 		glooutils.OptionsMergedFull,
+	),
+	Entry("deep merge shadowing: preserve mirror upstream when RouteOption provides only disableShadowHostSuffixAppend",
+		&gwv1.HTTPRoute{},
+		// dst: RouteOption only sets disableShadowHostSuffixAppend
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				DisableShadowHostSuffixAppend: true,
+			},
+		},
+		// src: mirror plugin provides upstream and percentage
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				Upstream: &core.ResourceRef{
+					Name:      "mirror-upstream",
+					Namespace: "default",
+				},
+				Percentage: 100,
+			},
+		},
+		// expected: all three fields merged
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				Upstream: &core.ResourceRef{
+					Name:      "mirror-upstream",
+					Namespace: "default",
+				},
+				Percentage:                    100,
+				DisableShadowHostSuffixAppend: true,
+			},
+		},
+		glooutils.OptionsMergedNone,
+	),
+	Entry("deep merge shadowing: RouteOption with full shadowing config takes precedence",
+		&gwv1.HTTPRoute{},
+		// dst: RouteOption provides complete shadowing config
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				Upstream: &core.ResourceRef{
+					Name:      "routeoption-upstream",
+					Namespace: "default",
+				},
+				Percentage:                    50,
+				DisableShadowHostSuffixAppend: true,
+			},
+		},
+		// src: mirror plugin provides different upstream
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				Upstream: &core.ResourceRef{
+					Name:      "mirror-upstream",
+					Namespace: "default",
+				},
+				Percentage: 100,
+			},
+		},
+		// expected: RouteOption's full config is used (dst wins when it has upstream)
+		&v1.RouteOptions{
+			Shadowing: &shadowing.RouteShadowing{
+				Upstream: &core.ResourceRef{
+					Name:      "routeoption-upstream",
+					Namespace: "default",
+				},
+				Percentage:                    50,
+				DisableShadowHostSuffixAppend: true,
+			},
+		},
+		glooutils.OptionsMergedNone,
 	),
 )
 
